@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+
+# Import the new handler
+from interrupt_handler import InterruptHandler, build_default_handler
+
 import asyncio
 import logging
 import sys
@@ -8,6 +16,9 @@ from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from livekit import rtc
 from livekit.agents import utils
@@ -29,20 +40,33 @@ logger = logging.getLogger("avatar-example")
 class AudioWaveGenerator(VideoGenerator):
     def __init__(self, options: AvatarOptions):
         self._options = options
-        self._audio_queue = asyncio.Queue[Union[rtc.AudioFrame, AudioSegmentEnd]]()
+        self._audio_queue = asyncio.Queue()
         self._audio_resampler: Optional[rtc.AudioResampler] = None
 
         self._canvas = np.zeros((options.video_height, options.video_width, 4), dtype=np.uint8)
         self._canvas.fill(255)
         self._wave_visualizer = WaveformVisualizer(sample_rate=options.audio_sample_rate)
 
-        # use AudioByteStream to chunk the audio frames to expected frame size
         self._audio_bstream = utils.audio.AudioByteStream(
             sample_rate=options.audio_sample_rate,
             num_channels=options.audio_channels,
             samples_per_channel=options.audio_sample_rate // options.video_fps,
         )
         self._frame_ts: deque[float] = deque(maxlen=options.video_fps)
+
+        # Use the new handler with stop callback from AvatarRunner
+        self.interrupt_handler = build_default_handler(agent=self, on_stop_callback=self._on_interrupt)
+
+    async def _on_interrupt(self):
+        # Called when an interruption is detected
+        if hasattr(self, "avatar_runner"):
+            await self.avatar_runner.interrupt()
+
+    async def on_transcription(self, transcript):
+        text = transcript.text
+        confidence = transcript.confidence
+
+        await self.interrupt_handler.on_transcript_event(text, confidence)
 
     # -- VideoGenerator abstract methods --
 
