@@ -321,6 +321,60 @@ async def test_no_availability() -> None:
 
 </table>
 
+## What Changed
+
+- Added `InterruptHandler` support for filler detection and stop keywords.
+- Implemented offline test modules:
+  - `test.py`
+  - `test_offline.py`
+- Updated `AvatarRunner` logic to integrate interrupt handling.
+- Configurable ignored words, stop keywords, and confidence threshold.
+
+## What Works
+
+- Filler words (`uh`, `umm`, `hmm`, `haan`) are ignored while agent is speaking.
+- Stop keywords (`stop`, `wait`, `hold on`, `no`) trigger the `STOP` callback.
+- Low-confidence transcripts are ignored if agent is speaking.
+- Normal speech transcripts pass through correctly.
+
+## Test Locally / Sample Outputs
+
+Run offline tests using:
+
+```bash
+python test.py
+python test_offline.py  
+```
+
+Sample Output:
+```bash
+[2025-11-18 23:27:33,207] INFO interrupt_handler: InterruptHandler initialized. ignored_words=['haan', 'hmm', 'uh', 'umm'] stop_keywords=['hold on', 'no', 'stop', 'wait'] confidence_threshold=0.60
+[2025-11-18 23:27:33,207] INFO interrupt_handler: Ignoring filler-only transcript while agent speaking: 'uh umm'
+{'action': 'ignore', 'reason': 'filler_only', 'transcript': 'uh umm'}
+[2025-11-18 23:27:33,207] INFO interrupt_handler: Valid interruption detected (stop keyword) in transcript: 'please stop now'. Triggering stop.
+>>> STOP called!
+{'action': 'stop', 'reason': 'stop_keyword', 'transcript': 'please stop now'}
+[2025-11-18 23:27:33,207] INFO interrupt_handler: Agent was quiet. Treating transcript as user speech: 'something random'
+{'action': 'pass_through', 'reason': 'agent_quiet', 'transcript': 'something random'}
+[2025-11-18 23:27:33,207] INFO interrupt_handler: Agent was quiet. Treating transcript as user speech: 'turn on the lights'
+{'action': 'pass_through', 'reason': 'agent_quiet', 'transcript': 'turn on the lights'}
+[2025-11-18 23:27:33,207] INFO interrupt_handler: Valid interruption detected (stop keyword) in transcript: 'wait I forgot'. Triggering stop.
+>>> STOP called!
+{'action': 'stop', 'reason': 'stop_keyword', 'transcript': 'wait I forgot'}
+[2025-11-18 23:27:33,222] INFO interrupt_handler: Ignoring low-confidence transcript while agent speaking (conf=0.55 < 0.60): 'umm I think yes'
+{'action': 'ignore', 'reason': 'low_confidence', 'transcript': 'umm I think yes'}
+[2025-11-18 23:27:33,223] INFO interrupt_handler: Ignoring low-confidence transcript while agent speaking (conf=0.30 < 0.60): 'hello'
+{'action': 'ignore', 'reason': 'low_confidence', 'transcript': 'hello'}
+[2025-11-18 23:27:33,224] INFO interrupt_handler: Valid interruption detected (stop keyword) in transcript: 'no'. Triggering stop.
+>>> STOP called!
+{'action': 'stop', 'reason': 'stop_keyword', 'transcript': 'no'}
+```
+- Filler words (uh, umm, hmm, haan) are ignored.
+
+- Stop keywords (stop, wait, hold on, no) trigger the STOP callback.
+
+- Normal speech passes through correctly.
+
 ## Running your agent
 
 ### Testing in terminal
@@ -342,8 +396,12 @@ Starts the agent server and enables hot reloading when files change. This mode a
 
 The agent connects to LiveKit Cloud or your self-hosted server. Set the following environment variables:
 - LIVEKIT_URL
-- LIVEKIT_API_KEY
-- LIVEKIT_API_SECRET
+- LIVEKIT_KEY
+- LIVEKIT_SECRET
+- IGNORED_WORDS=uh,umm,hmm,haan
+- STOP_KEYWORDS=stop,wait,hold on,no
+- INTERRUPT_CONFIDENCE_THRESHOLD=0.6
+
 
 You can connect using any LiveKit client SDK or telephony integration.
 To get started quickly, try the [Agents Playground](https://agents-playground.livekit.io/).
